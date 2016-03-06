@@ -1,4 +1,4 @@
-FROM mhart/alpine-node:4.3.2
+FROM mhart/alpine-node:5.7.1
 MAINTAINER Corey Butler
 
 ADD ./lib /app

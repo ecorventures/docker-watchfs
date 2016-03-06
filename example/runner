@@ -2,17 +2,17 @@
 
 handler="`pwd`/handler.sh"
 monitorDirectory="`pwd`/watchme"
-altMonitorDirectory="${monitorDirectory}2"
+altMonitorDirectory="`pwd`/watchme2"
 
 echo "Monitoring: $monitorDirectory and $altMonitorDirectory"
 echo "Handler: $handler"
 
 docker run --rm --name monitor \
-  -e "MONITOR1=/watch" \
-  -e "MONITOR1_HANDLER=/handler.sh" \
-  -e "MONITOR2=/watch2" \
-  -e "MONITOR2_HANDLER=/handler.sh" \
-  -v "$monitorDirectory:/watch" \
-  -v "$handler:/handler.sh" \
-  -v "$altMonitorDirectory:/watch2" \
+  -v "$monitorDirectory" \
+  -v "$handler" \
+  -v "$altMonitorDirectory" \
+  -e "MONITOR1=$monitorDirectory" \
+  -e "MONITOR1_HANDLER=$handler" \
+  -e "MONITOR2=$altMonitorDirectory" \
+  -e "MONITOR2_HANDLER=$handler" \
   ecor/watchfs

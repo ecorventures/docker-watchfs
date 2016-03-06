@@ -63,13 +63,13 @@ monitorDirectory="`pwd`/watchme"
 altMonitorDirectory="`pwd`/watchme2"
 
 docker run --rm --name monitor \
-  -e "MONITOR1=/watch" \
-  -e "MONITOR1_HANDLER=/handler.sh" \
-  -e "MONITOR2=/watch2" \
-  -e "MONITOR2_HANDLER=/handler.sh" \
-  -v "$monitorDirectory:/watch" \
-  -v "$handler:/handler.sh" \
-  -v "$altMonitorDirectory:/watch2" \
+  -v "$monitorDirectory" \
+  -v "$altMonitorDirectory" \
+  -v "$handler" \
+  -e "MONITOR1=$monitorDirectory" \
+  -e "MONITOR1_HANDLER=$handler" \
+  -e "MONITOR2=$altMonitorDirectory" \
+  -e "MONITOR2_HANDLER=$handler" \
   ecor/watchfs
 ```
 
@@ -80,69 +80,52 @@ Here's what each variable/volume refers to:
 
 ### Volumes
 
-- `-v "$monitorDirectory:/watch"`: Map the first monitored directory from my
-  local directory to a new directory in the container called `/watch`.
-- `"$handler:/handler.sh"`: Map the local handler shell script to a container
-  script called `/handler.sh`.
-- `-v "$altMonitorDirectory:/watch"`: Map the 2nd monitored directory from my
-  local machine to a new directory in the container called `/watch2`.
-- `"$handler:/handler.sh"`: Map the local handler shell script to a container
-  script called `/handler.sh`. _This is the same handler for both directories!_
+- `-v "$monitorDirectory"`: The first monitored directory.
+- `-v "$altMonitorDirectory"`: The second monitored directory.
+- `-v "$handler"`: The handler/script to respond to file system events with.
 
 ### Environment Variables
 
-- `-e "MONITOR1=/watch"`: The first monitored directory. This is the directory
-  recognized by the container. This is why the first volume is mapped from the
-  local computer to the container directory.
-- `-e "MONITOR1_HANDLER=/handler.sh"`: The handler script for the first monitored
-  directory (by the path recognized by the _container_).
-- `-e "MONITOR2=/watch2"`: The first monitored directory. This is the directory
-  recognized by the container. This is why the first volume is mapped from the
-  local computer to the container directory.
-- `-e "MONITOR2_HANDLER=/handler.sh"`: The handler script for the 2nd monitored
-  directory (by the path recognized by the _container_). Since we're only using
-  one script to handle changes to both directories, this is the same as the 1st.
+- `-e "MONITOR1=$monitorDirectory"`: The first monitored directory.
+- `-e "MONITOR1_HANDLER=$handler"`: The handler script for this first monitored
+  directory.
+- `-e "MONITOR2=$altMonitorDirectory"`: The second monitored directory.
+- `-e "MONITOR2_HANDLER=$handler"`: The handler script for the 2nd monitored
+  directory. Since the example script can handle both directories, this is the
+  same as the handler for the first monitored directory. This can point to
+  a different script though.
 
 ## Customization
 
-It is possible to monitor any number of directories. Each monitored directory
-needs two environment variables in sequential order. The syntax is:
+It is possible to monitor any number of directories. First, specify the directory
+as a volume in the `docker run` command, i.e. `-v "/path/to/directory"`.
+
+Each monitored directory needs two environment variables. The syntax is:
 
 1. `MONITOR<#><anything>` to identify the directory to be monitored.
 1. `MONITOR<#><anything>_HANDLER` to identify the script to execute when
   the monitor detects a change.
 
+`<#>` is a unique number, such as `1`, `2`, `3`, etc.
+
 Using the example, if you wanted to monitor a third directory, you would add:
 
 ```
--e "MONITOR3=/path/to/monitored/directory" \
--e "MONITOR3_HANDLER=/path/to/handler.sh"
+  -v "/path/to/monitored/directory" \
+  -e "MONITOR3=/path/to/monitored/directory" \
+  -e "MONITOR3_HANDLER=/path/to/handler.sh" \
 ```
 
-If you want more meaningful environment variable names, you can customize. For
-example, `MONITOR3_MY_BACKUPDIR` and `MONITOR3_MY_BACKUPDIR_HANDLER` are valid. The
-only important part of the syntax is the beginning and end. The directory to
-monitor should always start with `MONITOR#` while the handler just adds
+If you want more meaningful environment variable names, customize it. For
+example, `MONITOR3_MY_BACKUPDIR` and `MONITOR3_MY_BACKUPDIR_HANDLER` are valid.
+The only important part of the syntax is the beginning and end. The directory to
+be monitored should always start with `MONITOR<#>` while the handler just adds
 `_HANDLER` to the end of the variable.
 
-## Running With Privileges
+## Remember Permissions
 
-Docker supports running containers with privileges, meaning they basically act
-like a part of the host machine. This would allow you to monitor directories on
-the host machine without specifying all of the volumes. For example:
-
-```
-docker run --rm --name monitor \
-  -e "MONITOR1=/local/path/to/monitor" \
-  -e "MONITOR1_HANDLER=/local/path/to/handler.sh" \
-  --privileged \
-  ecor/watchfs
-```
-
-The advantage of using privileged is wider and easier access to directories.
-Disadvantages include wider and easier access to the host operating system.
-Additionally, if volumes are not specified, they cannot be used/attached to
-other containers using the `--volumes-from` flag.
+The directories must be readable, and the handler must be executable. While this
+seems obvious, it is easy to overlook.
 
 # Running as a Service/Daemon
 
@@ -151,23 +134,26 @@ easy to setup monitoring using a systemd file.
 
 ```sh
 [Unit]
-Description=Monitor
+Description=My Directory Monitor
+Requires=docker.service
 After=docker.service
 
 [Service]
 Restart=always
 RestartSec=10
+ExecStartPre=/usr/bin/docker pull ecor/watchfs
 ExecStart=/usr/bin/docker run --rm --name monitor \
-  -e "MONITOR1=/watch" \
-  -e "MONITOR1_HANDLER=/handler.sh" \
-  -e "MONITOR2=/watch2" \
-  -e "MONITOR2_HANDLER=/handler.sh" \
-  -v "`pwd`/watchme:/watch" \
-  -v "`pwd`/handler.sh:/handler.sh" \
-  -v "`pwd`/watchme2:/watch2" \
+  -v "/directory/to/monitor" \
+  -v "/directory/to/monitor2" \
+  -v "/path/to/handler.sh" \
+  -v "/path/to/another/handler.sh" \
+  -e "MONITOR1=/directory/to/monitor" \
+  -e "MONITOR1_HANDLER=/path/to/handler.sh" \
+  -e "MONITOR2=/directory/to/monitor2" \
+  -e "MONITOR2_HANDLER=/path/to/another/handler.sh" \
   ecor/watchfs
-ExecStop=/usr/bin/docker stop -t 2 monitor
+ExecStop=/usr/bin/docker stop monitor
 
 [Install]
-WantedBy=local.target
+WantedBy=default.target
 ```
