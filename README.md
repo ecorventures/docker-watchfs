@@ -157,3 +157,18 @@ ExecStop=/usr/bin/docker stop monitor
 [Install]
 WantedBy=default.target
 ```
+
+# Known Issue
+
+Why do I see `MONITOR1_HANDLER (/path/to/handler.sh) is not not a recognized executable. Check the file exists and has execute permissions.`?
+
+If you specify a handler directly as a volume (i.e. `-v /path/to/handler.sh`)
+and are certain the file exists with appropriate execute permissions, you can
+safely ignore this. Docker volume mounting sometimes changes the [inode](https://en.wikipedia.org/wiki/Inode)
+settings, as identified in the Docker "Manage data in containers" subsection
+entitled [Mount a host file as a data volume](https://docs.docker.com/engine/userguide/containers/dockervolumes/).
+Specifically, it incorrectly identifies the file as a directory. The warning
+emitted by watchfs is a result of checking to make sure the _file_ is
+executable, which will fail for anything it thinks is a directory. Hopefully
+this will be resolved in future versions of Docker. For now, this can be safely
+ignored. 
